@@ -7,6 +7,15 @@ use scanner::Scanner;
 mod error;
 mod scanner;
 
+fn main() {
+    let script_path = env::args().nth(1).unwrap_or_else(|| {
+        eprintln!("Usage: rlox [script]");
+        process::exit(64)
+    });
+
+    run_file(&script_path)
+}
+
 fn run_file(path: &str) {
     println!("run file: {path}");
     let contents = fs::read_to_string(path).expect("Error reading a file");
@@ -20,13 +29,4 @@ fn run(source: &str) {
     for token in tokens.iter() {
         println!("{:?} ", token)
     }
-}
-
-fn main() {
-    let script_path = env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Usage: rlox [script]");
-        process::exit(64)
-    });
-
-    run_file(&script_path)
 }
