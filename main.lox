@@ -1,0 +1,4 @@
+var language = "lox";
+var test = false;
+var toast = "test";
+print toast;
