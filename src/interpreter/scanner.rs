@@ -2,7 +2,7 @@ use crate::{
     error::error,
     tokens::{Token, TokenType},
 };
-use std::{char, collections::HashMap, fmt, mem};
+use std::{char, collections::HashMap, mem};
 
 pub struct Scanner {
     source: String,
