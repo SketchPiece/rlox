@@ -1,78 +1,11 @@
-use crate::error::error;
+use crate::{
+    error::error,
+    tokens::{Token, TokenType},
+};
 use std::{char, collections::HashMap, fmt, mem};
 
-#[derive(Debug, Clone)]
-pub enum TokenType {
-    // Single-character tokens.
-    LeftParen,
-    RightParen,
-    LeftBrace,
-    RightBrace,
-    Comma,
-    Dot,
-    Minus,
-    Plus,
-    Sumicolon,
-    Slash,
-    Star,
-
-    // One or two character tokens.
-    Bang,
-    BangEqual,
-    Equal,
-    EqualEqual,
-    Greater,
-    GreaterEqual,
-    Less,
-    LessEqual,
-
-    // Literals.
-    Identifier,
-    String(String),
-    Number(f64),
-
-    // Keywords.
-    And,
-    Class,
-    Else,
-    False,
-    Fun,
-    For,
-    If,
-    Nil,
-    Or,
-    Print,
-    Return,
-    Super,
-    This,
-    True,
-    Var,
-    While,
-
-    EndOfFile,
-}
-
-impl fmt::Display for TokenType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-#[derive(Debug)]
-pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    line: usize,
-}
-
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", self.token_type, self.lexeme)
-    }
-}
-
 pub struct Scanner {
-    sourse: String,
+    source: String,
     tokens: Vec<Token>,
     start: usize,
     current: usize,
@@ -103,7 +36,7 @@ impl Scanner {
 
     pub fn new(source: &str) -> Self {
         Scanner {
-            sourse: source.to_string(),
+            source: source.to_string(),
             tokens: Vec::new(),
             start: 0,
             current: 0,
@@ -138,14 +71,14 @@ impl Scanner {
             '.' => self.add_token(TokenType::Dot),
             '-' => self.add_token(TokenType::Minus),
             '+' => self.add_token(TokenType::Plus),
-            ';' => self.add_token(TokenType::Sumicolon),
+            ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
             '!' => self.add_token_with_match('=', TokenType::BangEqual, TokenType::Bang),
             '=' => self.add_token_with_match('=', TokenType::EqualEqual, TokenType::Equal),
             '<' => self.add_token_with_match('=', TokenType::LessEqual, TokenType::Less),
             '>' => self.add_token_with_match('=', TokenType::GreaterEqual, TokenType::Greater),
             '/' => {
-                if self.next_mathes('/') {
+                if self.next_matches('/') {
                     self.consume_comment();
                 } else {
                     self.add_token(TokenType::Slash)
@@ -173,7 +106,7 @@ impl Scanner {
             self.consume();
         }
 
-        let text = &self.sourse[self.start..self.current];
+        let text = &self.source[self.start..self.current];
         if let Some(token_type) = Scanner::get_keywords().get(text).cloned() {
             self.add_token(token_type);
         } else {
@@ -197,7 +130,7 @@ impl Scanner {
         // consume the closing "
         self.consume();
 
-        let value = self.sourse[self.start + 1..self.current - 1].to_owned();
+        let value = self.source[self.start + 1..self.current - 1].to_owned();
 
         self.add_token(TokenType::String(value));
     }
@@ -214,7 +147,7 @@ impl Scanner {
                 self.consume();
             }
 
-            let number_literal = self.sourse[self.start..self.current].to_owned();
+            let number_literal = self.source[self.start..self.current].to_owned();
             let value: f64 = number_literal
                 .parse()
                 .expect("Consumed string is not a number");
@@ -235,19 +168,19 @@ impl Scanner {
         expected_token: TokenType,
         else_token: TokenType,
     ) {
-        if self.next_mathes(expected) {
+        if self.next_matches(expected) {
             self.add_token(expected_token)
         } else {
             self.add_token(else_token)
         }
     }
 
-    fn next_mathes(&mut self, expected: char) -> bool {
+    fn next_matches(&mut self, expected: char) -> bool {
         if self.is_at_end() {
             return false;
         };
 
-        match self.sourse.chars().nth(self.current) {
+        match self.source.chars().nth(self.current) {
             Some(next_char) => {
                 if next_char == expected {
                     self.current += 1;
@@ -261,28 +194,28 @@ impl Scanner {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current >= self.sourse.chars().count()
+        self.current >= self.source.chars().count()
     }
 
     fn peek(&self) -> char {
         if self.is_at_end() {
             return '\0';
         }
-        self.sourse.chars().nth(self.current).unwrap_or('\0')
+        self.source.chars().nth(self.current).unwrap_or('\0')
     }
 
     fn peek_next(&self) -> char {
-        self.sourse.chars().nth(self.current + 1).unwrap_or('\0')
+        self.source.chars().nth(self.current + 1).unwrap_or('\0')
     }
 
     fn consume(&mut self) -> Option<char> {
-        let consumed_char = self.sourse.chars().nth(self.current);
+        let consumed_char = self.source.chars().nth(self.current);
         self.current += 1;
         consumed_char
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        let text = self.sourse[self.start..self.current].to_owned();
+        let text = self.source[self.start..self.current].to_owned();
 
         self.tokens.push(Token {
             token_type,

@@ -2,18 +2,23 @@ use std::env;
 use std::fs;
 use std::process;
 
+use asp::print_asp_main;
 use scanner::Scanner;
 
+mod asp;
 mod error;
+mod expr;
+mod helpers;
 mod scanner;
+mod tokens;
 
 fn main() {
     let script_path = env::args().nth(1).unwrap_or_else(|| {
         eprintln!("Usage: rlox [script]");
         process::exit(64)
     });
-
-    run_file(&script_path)
+    run_file(&script_path);
+    print_asp_main();
 }
 
 fn run_file(path: &str) {
