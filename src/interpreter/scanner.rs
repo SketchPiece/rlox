@@ -35,7 +35,7 @@ impl Scanner {
     }
 
     pub fn new(source: &str) -> Self {
-        Scanner {
+        Self {
             source: source.to_string(),
             tokens: Vec::new(),
             start: 0,
@@ -90,6 +90,8 @@ impl Scanner {
             ' ' | '\r' | '\t' => (),
             '"' => self.consume_string(),
             _ => {
+                // println!("consume char {}", consumed_char);
+
                 if consumed_char.is_ascii_digit() {
                     self.consume_number();
                 } else if consumed_char.is_alphabetic() {
@@ -146,14 +148,13 @@ impl Scanner {
             while self.peek().is_ascii_digit() {
                 self.consume();
             }
-
-            let number_literal = self.source[self.start..self.current].to_owned();
-            let value: f64 = number_literal
-                .parse()
-                .expect("Consumed string is not a number");
-
-            self.add_token(TokenType::Number(value));
         }
+
+        let number_literal = self.source[self.start..self.current].to_owned();
+        let value: f64 = number_literal
+            .parse()
+            .expect("Consumed string is not a number");
+        self.add_token(TokenType::Number(value));
     }
 
     fn consume_comment(&mut self) {

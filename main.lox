@@ -1,4 +1,4 @@
-var language = "lox";
-var test = false;
-var toast = "test";
-print toast;
+a == 2 == 3 == 4 == 5;
+!true > nil != 1;
+5 + 1 * (2 - 4);
+6 > 2 + 1;

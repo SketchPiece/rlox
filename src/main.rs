@@ -1,7 +1,6 @@
 use std::env;
 use std::process;
 
-use rlox::asp::print_asp_main;
 use rlox::run_file;
 
 fn main() {
@@ -10,5 +9,4 @@ fn main() {
         process::exit(64)
     });
     run_file(&script_path);
-    print_asp_main();
 }

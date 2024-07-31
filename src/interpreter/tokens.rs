@@ -1,6 +1,6 @@
-use std::fmt;
+use std::{fmt, mem};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -57,7 +57,13 @@ impl fmt::Display for TokenType {
     }
 }
 
-#[derive(Debug)]
+impl TokenType {
+    pub fn variant_eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
