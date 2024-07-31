@@ -1,6 +1,6 @@
+pub mod core;
 pub mod helpers;
-pub mod interpreter;
-pub use interpreter::*;
+pub use core::*;
 
 use parser::Parser;
 use scanner::Scanner;
