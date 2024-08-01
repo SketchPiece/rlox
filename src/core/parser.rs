@@ -1,11 +1,11 @@
 use super::{
     error::report,
-    expr::{Expr, Literal},
+    expr::{Expr, Value},
     tokens::{Token, TokenType},
 };
 
-use Literal as Lit;
 use TokenType as TT;
+use Value as V;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -110,27 +110,27 @@ impl Parser {
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
         if self.consume_matches(&[TT::False]) {
-            return Ok(Expr::Literal(Lit::Bool(false)));
+            return Ok(Expr::Literal(V::Bool(false)));
         }
         if self.consume_matches(&[TT::True]) {
-            return Ok(Expr::Literal(Lit::Bool(true)));
+            return Ok(Expr::Literal(V::Bool(true)));
         }
         if self.consume_matches(&[TT::Nil]) {
-            return Ok(Expr::Literal(Lit::Nil));
+            return Ok(Expr::Literal(V::Nil));
         }
 
         if self.consume_matches(&[TT::Number(0.0), TT::String("".into())]) {
             let prev_token = self.previous();
             return match prev_token.token_type {
-                TT::Number(num) => Ok(Expr::Literal(Lit::Number(num))),
-                TT::String(str) => Ok(Expr::Literal(Lit::String(str))),
+                TT::Number(num) => Ok(Expr::Literal(V::Number(num))),
+                TT::String(str) => Ok(Expr::Literal(V::String(str))),
                 _ => panic!("The primary neither string nor number despite enum match"),
             };
         }
 
         if self.consume_matches(&[TT::LeftParen]) {
             let expr = self.expression()?;
-            self.consume_until(TT::RightParen, "Expect ')' after expression")?;
+            self.consume_expected(TT::RightParen, "Expect ')' after expression")?;
             return Ok(Expr::Grouping(Box::new(expr)));
         }
 
@@ -150,8 +150,12 @@ impl Parser {
         false
     }
 
-    fn consume_until(&mut self, token_type: TokenType, message: &str) -> Result<Token, ParseError> {
-        if self.check(&token_type) {
+    fn consume_expected(
+        &mut self,
+        expected_type: TokenType,
+        message: &str,
+    ) -> Result<Token, ParseError> {
+        if self.check(&expected_type) {
             Ok(self.consume())
         } else {
             self.report_error(message);
