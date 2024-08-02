@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use super::{
-    expr::{Expr, Value},
+    ast::{Expr, Stmt, Value},
+    environment::Environment,
     reporter::ErrorReporter,
     tokens::{Token, TokenType},
 };
@@ -10,6 +11,8 @@ pub enum RuntimeError {
     OperandMustBeNumber(Token),
     OperandsMustBeNumbers(Token),
     OperandsMustBeStrings(Token),
+    UndefinedVariable(Token),
+    AssignUndefinedVariable(Token),
 }
 
 use RuntimeError as RE;
@@ -18,19 +21,13 @@ use Value as V;
 
 #[derive(Default)]
 pub struct Interpreter {
+    environment: Rc<Environment>,
     reporter: Option<Rc<dyn ErrorReporter>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn interpret(&self, expr: &Expr) {
-        match self.evaluate_expr(expr) {
-            Ok(value) => println!("{}", stringify(&value)),
-            Err(error) => self.report_runtime_error(error),
-        }
     }
 
     pub fn attach_reporter<R>(mut self, reporter: Rc<R>) -> Self
@@ -53,11 +50,63 @@ impl Interpreter {
                 RE::OperandsMustBeStrings(operator) => {
                     reporter.report_runtime(operator.line, "Operands must be strings.")
                 }
+                RE::UndefinedVariable(name) => reporter
+                    .report_runtime(name.line, &format!("Undefined variable '{}'.", name.lexeme)),
+                RE::AssignUndefinedVariable(name) => reporter
+                    .report_runtime(name.line, &format!("Undefined variable '{}'.", name.lexeme)),
             }
         }
     }
 
-    fn evaluate_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
+    pub fn interpret(&mut self, statements: &[Stmt]) {
+        for statement in statements {
+            if let Err(error) = self.execute(statement) {
+                self.report_runtime_error(error);
+                break;
+            }
+        }
+    }
+
+    fn execute(&mut self, stmt: &Stmt) -> Result<Value, RuntimeError> {
+        match stmt {
+            Stmt::Expression(expr) => self.evaluate_expr(expr),
+            Stmt::Print(expr) => {
+                let value = self.evaluate_expr(expr)?;
+                println!("{}", value.stringify());
+                Ok(V::Nil)
+            }
+            Stmt::Var(name, initializer) => {
+                let mut value = Value::Nil;
+                if let Some(expr) = initializer {
+                    value = self.evaluate_expr(expr)?;
+                }
+
+                self.environment.define(name.lexeme.to_owned(), value);
+                Ok(V::Nil)
+            }
+            Stmt::Block(statements) => {
+                let previous_env = Rc::clone(&self.environment);
+
+                self.environment = Rc::new(Environment::with_enclosing(Rc::clone(&previous_env)));
+
+                let _ = self.execute_block(statements);
+
+                self.environment = previous_env;
+
+                Ok(V::Nil)
+            }
+        }
+    }
+
+    fn execute_block(&mut self, statements: &Vec<Stmt>) -> Result<(), RuntimeError> {
+        for statement in statements {
+            self.execute(statement)?;
+        }
+
+        Ok(())
+    }
+
+    fn evaluate_expr(&mut self, expr: &Expr) -> Result<Value, RuntimeError> {
         match expr {
             Expr::Literal(val) => Ok(val.clone()),
             Expr::Grouping(expr) => self.evaluate_expr(expr),
@@ -67,10 +116,21 @@ impl Interpreter {
                 operator,
                 right,
             } => self.evaluate_binary(left, operator, right),
+            Expr::Variable(name) => self.evaluate_variable(name),
+            Expr::Assign(name, expr) => {
+                let value = self.evaluate_expr(expr)?;
+                match self
+                    .environment
+                    .assign(name.lexeme.to_owned(), value.clone())
+                {
+                    Ok(_) => Ok(value),
+                    Err(_) => Err(RE::AssignUndefinedVariable(name.clone())),
+                }
+            }
         }
     }
 
-    fn evaluate_unary(&self, operator: &Token, right: &Expr) -> Result<Value, RuntimeError> {
+    fn evaluate_unary(&mut self, operator: &Token, right: &Expr) -> Result<Value, RuntimeError> {
         let right_value = self.evaluate_expr(right)?;
 
         match operator.token_type {
@@ -83,8 +143,15 @@ impl Interpreter {
         }
     }
 
+    fn evaluate_variable(&self, name: &Token) -> Result<Value, RuntimeError> {
+        match self.environment.get(name) {
+            Some(val) => Ok(val.clone()),
+            None => Err(RE::UndefinedVariable(name.clone())),
+        }
+    }
+
     fn evaluate_binary(
-        &self,
+        &mut self,
         left: &Expr,
         operator: &Token,
         right: &Expr,
@@ -157,15 +224,6 @@ fn is_equal(left: &Value, right: &Value) -> bool {
         left.as_bool().unwrap() == right.as_bool().unwrap()
     } else {
         false
-    }
-}
-
-fn stringify(value: &Value) -> String {
-    match value {
-        V::Number(num) => num.to_string(),
-        V::String(str) => str.to_owned(),
-        V::Bool(val) => val.to_string(),
-        V::Nil => "nil".to_owned(),
     }
 }
 

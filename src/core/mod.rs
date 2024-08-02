@@ -1,4 +1,5 @@
-pub mod expr;
+pub mod ast;
+pub mod environment;
 pub mod interpreter;
 pub mod parser;
 pub mod reporter;

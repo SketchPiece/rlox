@@ -45,6 +45,15 @@ impl Value {
     pub fn is_nil(&self) -> bool {
         matches!(self, Self::Nil)
     }
+
+    pub fn stringify(&self) -> String {
+        match self {
+            Self::Number(num) => num.to_string(),
+            Self::String(str) => str.to_owned(),
+            Self::Bool(val) => val.to_string(),
+            Self::Nil => "nil".to_owned(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -60,6 +69,8 @@ pub enum Expr {
     },
     Grouping(Box<Expr>),
     Literal(Value),
+    Variable(Token),
+    Assign(Token, Box<Expr>),
 }
 
 impl Expr {
@@ -72,7 +83,7 @@ impl Expr {
             } => parenthesize!(operator.lexeme, left.stringify(), right.stringify()),
             Expr::Literal(literal) => match literal {
                 Value::Number(num) => num.to_string(),
-                Value::String(str) => str.to_owned(),
+                Value::String(str) => format!("\"{}\"", str.to_owned()),
                 Value::Bool(value) => {
                     if *value {
                         "true".to_owned()
@@ -84,6 +95,15 @@ impl Expr {
             },
             Expr::Unary { operator, right } => parenthesize!(operator.lexeme, right.stringify()),
             Expr::Grouping(expr) => parenthesize!("group", expr.stringify()),
+            Expr::Variable(name) => name.lexeme.to_owned(),
+            Expr::Assign(name, expr) => parenthesize!("assign", name.lexeme, expr.stringify()),
         }
     }
+}
+
+pub enum Stmt {
+    Block(Box<Vec<Stmt>>),
+    Expression(Expr),
+    Print(Expr),
+    Var(Token, Option<Expr>),
 }

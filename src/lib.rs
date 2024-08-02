@@ -50,21 +50,27 @@ pub fn run(source: &str) {
     let tokens = scanner.scan_tokens();
 
     if debug_run {
+        println!();
         helpers::print_tokens(&tokens);
     }
 
     let mut parser = Parser::new(tokens).attach_reporter(Rc::clone(&log_reporter));
-    if let Ok(expr) = parser.parse() {
-        if debug_run {
-            println!("Expression AST: {:?}", expr.stringify());
-        }
-        let interpreter = Interpreter::new().attach_reporter(Rc::clone(&log_reporter));
-        interpreter.interpret(&expr);
+    let statements = parser.parse();
+    if debug_run {
+        println!();
+        helpers::print_statements(&statements, 0);
+
+        println!();
+        println!("Execution result:");
     }
 
     if log_reporter.is_had_error() {
         process::exit(65);
     }
+
+    let mut interpreter = Interpreter::new().attach_reporter(Rc::clone(&log_reporter));
+    interpreter.interpret(&statements);
+
     if log_reporter.is_had_runtime_error() {
         process::exit(70)
     }
