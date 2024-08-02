@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 use super::{
-    error::report,
     expr::{Expr, Value},
+    reporter::ErrorReporter,
     tokens::{Token, TokenType},
 };
 
@@ -16,11 +18,35 @@ pub enum ParseError {
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+    reporter: Option<Rc<dyn ErrorReporter>>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+        Self {
+            tokens,
+            current: 0,
+            reporter: None,
+        }
+    }
+
+    pub fn attach_reporter<R>(mut self, reporter: Rc<R>) -> Self
+    where
+        R: ErrorReporter + 'static,
+    {
+        self.reporter = Some(reporter);
+        self
+    }
+
+    fn report_error(&self, message: &str) {
+        if let Some(reporter) = self.reporter.as_ref() {
+            let token = self.peek();
+            if token.token_type.variant_eq(&TT::EndOfFile) {
+                reporter.report(token.line, " at end", message);
+            } else {
+                reporter.report(token.line, &format!(" at '{}'", token.lexeme), message);
+            }
+        }
     }
 
     pub fn parse(&mut self) -> Result<Expr, ParseError> {
@@ -124,7 +150,7 @@ impl Parser {
             return match prev_token.token_type {
                 TT::Number(num) => Ok(Expr::Literal(V::Number(num))),
                 TT::String(str) => Ok(Expr::Literal(V::String(str))),
-                _ => panic!("The primary neither string nor number despite enum match"),
+                _ => panic!("the primary value neither string nor number despite enum match"),
             };
         }
 
@@ -186,24 +212,15 @@ impl Parser {
     fn peek(&self) -> Token {
         self.tokens
             .get(self.current)
-            .expect("Peeked out of bounds token")
+            .expect("current must be within tokens bounds")
             .clone()
     }
 
     fn previous(&self) -> Token {
         self.tokens
             .get(self.current - 1)
-            .expect("Previous token is out of bounds")
+            .expect("previous token must be used after it was consumed at least once")
             .clone()
-    }
-
-    fn report_error(&self, message: &str) {
-        let token = self.peek();
-        if token.token_type.variant_eq(&TT::EndOfFile) {
-            report(token.line, "at end", message);
-        } else {
-            report(token.line, &format!(" at '{}'", token.lexeme), message);
-        }
     }
 
     // fn synchronize(&mut self) {

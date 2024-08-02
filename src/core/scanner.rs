@@ -1,8 +1,7 @@
-use crate::{
-    error::error,
-    tokens::{Token, TokenType},
-};
-use std::{char, collections::HashMap, mem};
+use crate::tokens::{Token, TokenType};
+use std::{char, collections::HashMap, mem, rc::Rc};
+
+use super::reporter::ErrorReporter;
 
 pub struct Scanner {
     source: String,
@@ -10,6 +9,7 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
+    reporter: Option<Rc<dyn ErrorReporter>>,
 }
 
 impl Scanner {
@@ -41,6 +41,21 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            reporter: None,
+        }
+    }
+
+    pub fn attach_reporter<R>(mut self, reporter: Rc<R>) -> Self
+    where
+        R: ErrorReporter + 'static,
+    {
+        self.reporter = Some(reporter);
+        self
+    }
+
+    pub fn report_error(&self, line: usize, message: &str) {
+        if let Some(reporter) = self.reporter.as_ref() {
+            reporter.report(line, "", message);
         }
     }
 
@@ -97,7 +112,8 @@ impl Scanner {
                 } else if consumed_char.is_alphabetic() {
                     self.consume_identifier();
                 } else {
-                    error(self.line, "unexpected char (fix error)")
+                    self.report_error(self.line, "unexpected char") // todo: what I was going to fix?
+                                                                    // error(self.line, "unexpected char (fix error)") // todo: fix error
                 }
             }
         };
@@ -125,7 +141,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            error(self.line, "Unterminated string.");
+            self.report_error(self.line, "Unterminated string.");
             return;
         }
 

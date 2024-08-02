@@ -7,13 +7,17 @@ use parser::Parser;
 use reporter::log_reporter::LogReporter;
 use scanner::Scanner;
 use std::{
+    env::args,
     fs,
     io::{self, Write},
+    process,
     rc::Rc,
 };
 
 pub fn run_file(path: &str) {
-    println!("Running file: {path}");
+    if is_debug_run() {
+        println!("Running file: {path}");
+    }
     let contents = fs::read_to_string(path).expect("Error reading a file");
     run(&contents);
 }
@@ -39,11 +43,12 @@ pub fn run_prompt() {
 }
 
 pub fn run(source: &str) {
-    let debug_run = true;
+    let debug_run = is_debug_run();
     let log_reporter = LogReporter::new();
 
     let mut scanner = Scanner::new(source).attach_reporter(Rc::clone(&log_reporter));
     let tokens = scanner.scan_tokens();
+
     if debug_run {
         helpers::print_tokens(&tokens);
     }
@@ -53,7 +58,18 @@ pub fn run(source: &str) {
         if debug_run {
             println!("Expression AST: {:?}", expr.stringify());
         }
-        let interpreter = Interpreter::new(expr);
-        interpreter.interpret();
+        let interpreter = Interpreter::new().attach_reporter(Rc::clone(&log_reporter));
+        interpreter.interpret(&expr);
     }
+
+    if log_reporter.is_had_error() {
+        process::exit(65);
+    }
+    if log_reporter.is_had_runtime_error() {
+        process::exit(70)
+    }
+}
+
+fn is_debug_run() -> bool {
+    args().any(|arg| arg == "--debug" || arg == "-d")
 }

@@ -1,34 +1,65 @@
+use std::rc::Rc;
+
 use super::{
     expr::{Expr, Value},
+    reporter::ErrorReporter,
     tokens::{Token, TokenType},
 };
 
+pub enum RuntimeError {
+    OperandMustBeNumber(Token),
+    OperandsMustBeNumbers(Token),
+    OperandsMustBeStrings(Token),
+}
+
+use RuntimeError as RE;
 use TokenType as TT;
 use Value as V;
 
-pub enum InterpreterError {
-    OperandMustBeNumber(Token),
-}
-
+#[derive(Default)]
 pub struct Interpreter {
-    expr: Expr,
+    reporter: Option<Rc<dyn ErrorReporter>>,
 }
 
-// ! refactor to return error instead of expect
 impl Interpreter {
-    pub fn new(expr: Expr) -> Self {
-        Self { expr }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn interpret(&self) {
-        // ! handle error here
-        let value = self.evaluate_expr(&self.expr);
-        println!("{}", stringify(&value));
+    pub fn interpret(&self, expr: &Expr) {
+        match self.evaluate_expr(expr) {
+            Ok(value) => println!("{}", stringify(&value)),
+            Err(error) => self.report_runtime_error(error),
+        }
     }
 
-    fn evaluate_expr(&self, expr: &Expr) -> Value {
+    pub fn attach_reporter<R>(mut self, reporter: Rc<R>) -> Self
+    where
+        R: ErrorReporter + 'static,
+    {
+        self.reporter = Some(reporter);
+        self
+    }
+
+    fn report_runtime_error(&self, error: RuntimeError) {
+        if let Some(reporter) = &self.reporter {
+            match error {
+                RE::OperandMustBeNumber(operator) => {
+                    reporter.report_runtime(operator.line, "Operand must be a number.")
+                }
+                RE::OperandsMustBeNumbers(operator) => {
+                    reporter.report_runtime(operator.line, "Operands must be numbers.")
+                }
+                RE::OperandsMustBeStrings(operator) => {
+                    reporter.report_runtime(operator.line, "Operands must be strings.")
+                }
+            }
+        }
+    }
+
+    fn evaluate_expr(&self, expr: &Expr) -> Result<Value, RuntimeError> {
         match expr {
-            Expr::Literal(val) => val.clone(),
+            Expr::Literal(val) => Ok(val.clone()),
             Expr::Grouping(expr) => self.evaluate_expr(expr),
             Expr::Unary { operator, right } => self.evaluate_unary(operator, right),
             Expr::Binary {
@@ -39,114 +70,78 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_unary(&self, operator: &Token, right: &Expr) -> Value {
-        let right_value = self.evaluate_expr(right);
+    fn evaluate_unary(&self, operator: &Token, right: &Expr) -> Result<Value, RuntimeError> {
+        let right_value = self.evaluate_expr(right)?;
 
         match operator.token_type {
-            TT::Bang => V::Bool(!is_truthy(&right_value)),
+            TT::Bang => Ok(V::Bool(!is_truthy(&right_value))),
             TT::Minus => {
-                // let right_num = expect_number_operand(&operator, right_value)?;
-                // V::Number(-right_num)
-                V::Number(
-                    -right_value
-                        .as_number()
-                        .expect("Using minus operator with non number value"),
-                )
+                let right_num = expect_number_operand(operator, right_value)?;
+                Ok(V::Number(-right_num))
             }
-            _ => V::Nil,
+            _ => Ok(V::Nil),
         }
     }
 
-    fn evaluate_binary(&self, left: &Expr, operator: &Token, right: &Expr) -> Value {
-        let left_value = self.evaluate_expr(left);
-        let right_value = self.evaluate_expr(right);
+    fn evaluate_binary(
+        &self,
+        left: &Expr,
+        operator: &Token,
+        right: &Expr,
+    ) -> Result<Value, RuntimeError> {
+        let left_value = self.evaluate_expr(left)?;
+        let right_value = self.evaluate_expr(right)?;
 
         match operator.token_type {
-            TT::BangEqual => V::Bool(!is_equal(&left_value, &right_value)),
-            TT::Equal => V::Bool(is_equal(&left_value, &right_value)),
+            TT::BangEqual => Ok(V::Bool(!is_equal(&left_value, &right_value))),
+            TT::Equal => Ok(V::Bool(is_equal(&left_value, &right_value))),
             TT::Greater => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Bool(left_num > right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Bool(left_num > right_num))
             }
             TT::GreaterEqual => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Bool(left_num >= right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Bool(left_num >= right_num))
             }
             TT::Less => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Bool(left_num < right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Bool(left_num < right_num))
             }
             TT::LessEqual => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Bool(left_num <= right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Bool(left_num <= right_num))
             }
             TT::Minus => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Number(left_num - right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Number(left_num - right_num))
             }
             TT::Slash => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Number(left_num / right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Number(left_num / right_num))
             }
             TT::Star => {
-                let left_num = left_value
-                    .as_number()
-                    .expect("Left expression is not a number");
-                let right_num = right_value
-                    .as_number()
-                    .expect("Right expression is not a number");
-                V::Number(left_num * right_num)
+                let (left_num, right_num) =
+                    expect_number_operands(operator, left_value, right_value)?;
+                Ok(V::Number(left_num * right_num))
             }
             TT::Plus => {
                 if left_value.is_number() && right_value.is_number() {
-                    let left_num = left_value
-                        .as_number()
-                        .expect("Left expression is not a number");
-                    let right_num = right_value
-                        .as_number()
-                        .expect("Right expression is not a number");
-                    V::Number(left_num + right_num)
+                    let (left_num, right_num) =
+                        expect_number_operands(operator, left_value, right_value)?;
+                    Ok(V::Number(left_num + right_num))
                 } else {
-                    let left_str = left_value
-                        .as_string()
-                        .expect("Left expression is not a string");
-                    let right_str = right_value
-                        .as_string()
-                        .expect("Right expression is not a string");
-                    V::String(format!("{}{}", left_str, right_str))
+                    let (left_str, right_str) =
+                        expect_string_operands(operator, left_value, right_value)?;
+                    Ok(V::String(format!("{}{}", left_str, right_str)))
                 }
             }
-            _ => V::Nil,
+            _ => Ok(V::Nil),
         }
     }
 }
@@ -164,7 +159,7 @@ fn is_equal(left: &Value, right: &Value) -> bool {
         false
     }
 }
-// todo: delete empty decimal for number
+
 fn stringify(value: &Value) -> String {
     match value {
         V::Number(num) => num.to_string(),
@@ -182,10 +177,36 @@ fn is_truthy(value: &Value) -> bool {
     }
 }
 
-// fn expect_number_operand(operator: &Token, val: Value) -> Result<f64, InterpreterError> {
-//     val.as_number()
-//         .ok_or_else(|| InterpreterError::OperandMustBeNumber(operator.clone()))
-// }
+fn expect_number_operand(operator: &Token, val: Value) -> Result<f64, RuntimeError> {
+    val.as_number()
+        .ok_or_else(|| RE::OperandMustBeNumber(operator.clone()))
+}
 
-// todo: implement reporting
-// fn report_runtime_error() {}
+fn expect_number_operands(
+    operator: &Token,
+    left: Value,
+    right: Value,
+) -> Result<(f64, f64), RuntimeError> {
+    let left_num = left
+        .as_number()
+        .ok_or_else(|| RE::OperandsMustBeNumbers(operator.clone()))?;
+    let right_num = right
+        .as_number()
+        .ok_or_else(|| RE::OperandsMustBeNumbers(operator.clone()))?;
+    Ok((left_num, right_num))
+}
+
+fn expect_string_operands(
+    operator: &Token,
+    left: Value,
+    right: Value,
+) -> Result<(String, String), RuntimeError> {
+    let left_str = left
+        .as_string()
+        .ok_or_else(|| RE::OperandMustBeNumber(operator.clone()))?;
+    let right_str = right
+        .as_string()
+        .ok_or_else(|| RE::OperandsMustBeStrings(operator.clone()))?;
+
+    Ok((left_str, right_str))
+}
