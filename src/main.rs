@@ -11,8 +11,6 @@ fn main() {
         Ordering::Greater | Ordering::Equal => {
             let script_path = env::args().nth(1).expect("First argument must exist");
             run_file(&script_path);
-            // eprintln!("Usage: rlox [script]");
-            // process::exit(64)
         }
         Ordering::Less => run_prompt(),
     }
