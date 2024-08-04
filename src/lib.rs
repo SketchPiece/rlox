@@ -4,7 +4,7 @@ pub use core::*;
 
 use interpreter::Interpreter;
 use parser::Parser;
-use reporter::log_reporter::LogReporter;
+use reporter::console_reporter::ConsoleReporter;
 use scanner::Scanner;
 use std::{
     env::args,
@@ -44,7 +44,7 @@ pub fn run_prompt() {
 
 pub fn run(source: &str) {
     let debug_run = is_debug_run();
-    let log_reporter = LogReporter::new();
+    let log_reporter = ConsoleReporter::new();
 
     let mut scanner = Scanner::new(source).attach_reporter(Rc::clone(&log_reporter));
     let tokens = scanner.scan_tokens();
