@@ -29,8 +29,7 @@ impl Environment {
         if let Some(value) = values.get(&name.lexeme) {
             Some(value.clone())
         } else if let Some(enclosing) = &self.enclosing {
-            let enclosing_values = enclosing.values.borrow_mut();
-            Some(enclosing_values.get(&name.lexeme)?.clone())
+            enclosing.get(name)
         } else {
             None
         }

@@ -52,8 +52,10 @@ impl Interpreter {
                 }
                 RE::UndefinedVariable(name) => reporter
                     .report_runtime(name.line, &format!("Undefined variable '{}'.", name.lexeme)),
-                RE::AssignUndefinedVariable(name) => reporter
-                    .report_runtime(name.line, &format!("Undefined variable '{}'.", name.lexeme)),
+                RE::AssignUndefinedVariable(name) => reporter.report_runtime(
+                    name.line,
+                    &format!("Assign undefined variable '{}'.", name.lexeme),
+                ),
             }
         }
     }
@@ -89,7 +91,7 @@ impl Interpreter {
 
                 self.environment = Rc::new(Environment::with_enclosing(Rc::clone(&previous_env)));
 
-                let _ = self.execute_block(statements);
+                self.execute_block(statements)?;
 
                 self.environment = previous_env;
 
