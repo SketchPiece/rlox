@@ -1,3 +1,3 @@
 # rlox
 
-Rust lox interpreter impolementation based on [Crafting Interpreters](https://craftinginterpreters.com/) Book
+Rust lox interpreter implementation based on [Crafting Interpreters](https://craftinginterpreters.com/) Book
